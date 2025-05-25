@@ -1,8 +1,8 @@
 {
-  "name": "mcp-server-gsc",
+  "name": "@bdmarvin/mcp-server-gsc",
   "version": "0.2.0",
-  "description": "A Model Context Protocol (MCP) server providing access to Google Search Console",
-  "author": "Yuexun Jiang <yuexunjiang@gmail.com>",
+  "description": "A Model Context Protocol (MCP) server providing access to Google Search Console using OAuth2 tokens.",
+  "author": "Yuexun Jiang <yuexunjiang@gmail.com> (Original Author), Bdmarvin <bdmarvin@gmail.com> (Modified for OAuth)",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -16,6 +16,20 @@
     "prepare": "npm run build",
     "watch": "tsc --watch"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bdmarvin1/mcp-server-gsc.git"
+  },
+  "keywords": [
+    "mcp",
+    "google search console",
+    "gsc",
+    "api",
+    "typingmind",
+    "oauth",
+    "oauth2",
+    "model context protocol"
+  ],
   "packageManager": "pnpm@9.10.0+sha512.73a29afa36a0d092ece5271de5177ecbf8318d454ecd701343131b8ebc0c1a91c487da46ab77c8e596d6acf1461e3594ced4becedf8921b074fbd8653ed7051c",
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
