@@ -1,6 +1,6 @@
 {
   "name": "@bdmarvin/mcp-server-gsc",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A Model Context Protocol (MCP) server providing access to Google Search Console using OAuth2 tokens.",
   "author": "Yuexun Jiang <yuexunjiang@gmail.com> (Original Author), Bdmarvin <bdmarvin@gmail.com> (Modified for OAuth)",
   "license": "MIT",
