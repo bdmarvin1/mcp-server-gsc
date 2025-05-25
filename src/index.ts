@@ -18,7 +18,7 @@ import { SearchConsoleService } from './search-console.js';
 const server = new Server(
   {
     name: 'gsc-mcp-server',
-    version: '0.1.0', // Consider bumping version after these changes
+    version: '0.2.0', // Bumped version to reflect changes
   },
   {
     capabilities: {
@@ -29,20 +29,13 @@ const server = new Server(
   },
 );
 
-// REMOVED: GOOGLE_APPLICATION_CREDENTIALS check
-// const GOOGLE_APPLICATION_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-// if (!GOOGLE_APPLICATION_CREDENTIALS) {
-//   console.error('GOOGLE_APPLICATION_CREDENTIALS environment variable is required');
-//   process.exit(1);
-// }
-
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: 'list_sites',
         description: 'List all sites in Google Search Console',
-        inputSchema: zodToJsonSchema(z.object({})), // No specific input beyond potential context
+        inputSchema: zodToJsonSchema(z.object({})),
       },
       {
         name: 'search_analytics',
@@ -75,156 +68,119 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
-    const augmentedArgs = request.params.arguments as any; // Cast for now, consider defining a type
+    const allArgsFromController = request.params.arguments as any; 
 
-    if (!augmentedArgs) { // Check if augmentedArgs itself is missing
-      throw new Error('Arguments are required');
+    if (!allArgsFromController) {
+      throw new Error('Arguments object is required from the controller');
     }
 
-    const googleAccessToken = augmentedArgs.__google_access_token__;
-    // Optional: const googleUserId = augmentedArgs.__google_user_id__;
-    // Optional: const googleUserEmail = augmentedArgs.__google_user_email__;
+    const googleAccessToken = allArgsFromController.__google_access_token__;
+    const googleUserId = allArgsFromController.__google_user_id__;
+    const googleUserEmail = allArgsFromController.__google_user_email__;
 
     if (typeof googleAccessToken !== 'string' || !googleAccessToken) {
       throw new Error(
         '__google_access_token__ not provided or invalid in arguments by the MCP OAuth Controller.',
       );
     }
+    
+    const originalToolArgs: {[key: string]: any} = {};
+    for (const key in allArgsFromController) {
+      if (key !== '__google_access_token__' && key !== '__google_user_id__' && key !== '__google_user_email__') {
+        originalToolArgs[key] = allArgsFromController[key];
+      }
+    }
+    
+    console.error(`GSC Server: Received call for tool: ${request.params.name}`);
+    console.error(`GSC Server: Google User Context: ID=${googleUserId}, Email=${googleUserEmail}`);
 
-    // Instantiate SearchConsoleService without credentials path
     const searchConsole = new SearchConsoleService();
 
     switch (request.params.name) {
       case 'search_analytics': {
-        const args = SearchAnalyticsSchema.parse(augmentedArgs);
-        const siteUrl = args.siteUrl;
+        const parsedArgs = SearchAnalyticsSchema.parse(originalToolArgs);
+        const siteUrl = parsedArgs.siteUrl;
         const requestBody = {
-          startDate: args.startDate,
-          endDate: args.endDate,
-          dimensions: args.dimensions,
-          searchType: args.type,
-          aggregationType: args.aggregationType,
-          rowLimit: args.rowLimit,
+          startDate: parsedArgs.startDate,
+          endDate: parsedArgs.endDate,
+          dimensions: parsedArgs.dimensions,
+          searchType: parsedArgs.type,
+          aggregationType: parsedArgs.aggregationType,
+          rowLimit: parsedArgs.rowLimit,
         };
-        // Pass googleAccessToken as the first argument
         const response = await searchConsole.searchAnalytics(googleAccessToken, siteUrl, requestBody);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
       }
 
       case 'list_sites': {
-        // No arguments to parse beyond the access token
         const response = await searchConsole.listSites(googleAccessToken);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
       }
 
       case 'index_inspect': {
-        const args = IndexInspectSchema.parse(augmentedArgs);
+        const parsedArgs = IndexInspectSchema.parse(originalToolArgs);
         const requestBody = {
-          siteUrl: args.siteUrl,
-          inspectionUrl: args.inspectionUrl,
-          languageCode: args.languageCode,
+          siteUrl: parsedArgs.siteUrl,
+          inspectionUrl: parsedArgs.inspectionUrl,
+          languageCode: parsedArgs.languageCode,
         };
         const response = await searchConsole.indexInspect(googleAccessToken, requestBody);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
       }
 
       case 'list_sitemaps': {
-        const args = ListSitemapsSchema.parse(augmentedArgs);
-        const requestBody = { // This is actually Params$Resource$Sitemaps$List
-          siteUrl: args.siteUrl,
-          sitemapIndex: args.sitemapIndex, // This might be undefined if not provided
+        const parsedArgs = ListSitemapsSchema.parse(originalToolArgs);
+        const requestBody = { 
+          siteUrl: parsedArgs.siteUrl,
+          sitemapIndex: parsedArgs.sitemapIndex, 
         };
         const response = await searchConsole.listSitemaps(googleAccessToken, requestBody);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
       }
 
       case 'get_sitemap': {
-        const args = GetSitemapSchema.parse(augmentedArgs);
-        const requestBody = { // This is Params$Resource$Sitemaps$Get
-          siteUrl: args.siteUrl,
-          feedpath: args.feedpath,
+        const parsedArgs = GetSitemapSchema.parse(originalToolArgs);
+        const requestBody = { 
+          siteUrl: parsedArgs.siteUrl,
+          feedpath: parsedArgs.feedpath,
         };
         const response = await searchConsole.getSitemap(googleAccessToken, requestBody);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
       }
 
       case 'submit_sitemap': {
-        const args = SubmitSitemapSchema.parse(augmentedArgs);
-        const requestBody = { // This is Params$Resource$Sitemaps$Submit
-          siteUrl: args.siteUrl,
-          feedpath: args.feedpath,
+        const parsedArgs = SubmitSitemapSchema.parse(originalToolArgs);
+        const requestBody = { 
+          siteUrl: parsedArgs.siteUrl,
+          feedpath: parsedArgs.feedpath,
         };
         const response = await searchConsole.submitSitemap(googleAccessToken, requestBody);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
+        return { content: [{ type: 'text', text: JSON.stringify(response.data, null, 2) }] };
       }
 
       default:
         throw new Error(`Unknown tool: ${request.params.name}`);
     }
   } catch (error) {
-    console.error('Error in CallToolRequest handler:', error); // Enhanced logging
+    console.error(`Error in CallToolRequest handler for tool '${request.params.name}':`, error); 
     if (error instanceof z.ZodError) {
-      // Provide more context for Zod errors
       const messages = error.errors.map((e) => `${e.path.join('.') || 'argument'}: ${e.message}`);
-      throw new Error(`Invalid arguments: ${messages.join('; ')}`);
+      throw new Error(`Invalid arguments for tool '${request.params.name}': ${messages.join('; ')}`);
     }
-    // Re-throw other errors, ensuring they are actual Error instances
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(`An unexpected error occurred: ${String(error)}`);
+    throw new Error(`An unexpected error occurred in tool '${request.params.name}': ${String(error)}`);
   }
 });
 
 async function runServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Google Search Console MCP Server (OAuth2 Ready) running on stdio');
+  console.error('Google Search Console MCP Server (OAuth2 Ready - v0.2.0) running on stdio');
 }
 
 runServer().catch((error) => {
-  console.error('Fatal error in main():', error);
+  console.error('Fatal error running GSC MCP Server:', error);
   process.exit(1);
 });
