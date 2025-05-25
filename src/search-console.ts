@@ -1,5 +1,4 @@
 import { google, searchconsole_v1, webmasters_v3 } from 'googleapis';
-// Corrected: No direct import of 'Auth' or 'auth' needed here for OAuth2Client type if using google.auth.OAuth2Client
 
 // Type definitions remain the same
 type SearchanalyticsQueryRequest =
@@ -16,7 +15,7 @@ export class SearchConsoleService {
     // Constructor is now empty
   }
 
-  private getOAuth2Client(accessToken: string): google.auth.OAuth2Client { // Use google.auth.OAuth2Client for type
+  private getOAuth2Client(accessToken: string): import('google-auth-library').OAuth2Client { // Using import type
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: accessToken });
     return oauth2Client;
