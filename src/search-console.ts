@@ -1,5 +1,5 @@
 import { google, searchconsole_v1, webmasters_v3 } from 'googleapis';
-import { Auth } from 'google-auth-library'; // Import Auth for OAuth2Client type
+// Corrected: No direct import of 'Auth' or 'auth' needed here for OAuth2Client type if using google.auth.OAuth2Client
 
 // Type definitions remain the same
 type SearchanalyticsQueryRequest =
@@ -11,46 +11,39 @@ type IndexInspectRequest =
   searchconsole_v1.Params$Resource$Urlinspection$Index$Inspect['requestBody'];
 
 export class SearchConsoleService {
-  // REMOVED: private auth: GoogleAuth;
 
   constructor() {
-    // Constructor is now empty or can be used for other general initializations
-    // REMOVED: Initialization of this.auth
+    // Constructor is now empty
   }
 
-  private getOAuth2Client(accessToken: string): Auth.OAuth2Client {
+  private getOAuth2Client(accessToken: string): google.auth.OAuth2Client { // Use google.auth.OAuth2Client for type
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: accessToken });
     return oauth2Client;
   }
 
-  private getWebmasters(accessToken: string) { // Added accessToken parameter
+  private getWebmasters(accessToken: string) {
     const authClient = this.getOAuth2Client(accessToken);
     return google.webmasters({
       version: 'v3',
-      auth: authClient, // Use the OAuth2 client
+      auth: authClient,
     } as webmasters_v3.Options);
   }
 
-  private getSearchConsole(accessToken: string) { // Added accessToken parameter
+  private getSearchConsole(accessToken: string) {
     const authClient = this.getOAuth2Client(accessToken);
     return google.searchconsole({
       version: 'v1',
-      auth: authClient, // Use the OAuth2 client
+      auth: authClient,
     } as searchconsole_v1.Options);
   }
 
   private normalizeUrl(url: string): string {
     const parsedUrl = new URL(url);
     if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-      // Prefer sc-domain for properties, but ensure it's correctly formed.
-      // The original logic might be too simplistic if siteUrl can be a full path.
-      // For now, keeping existing logic, but this might need review based on GSC requirements.
       return `sc-domain:${parsedUrl.hostname}`;
     }
-    // This case seems unlikely if the input is always a valid site URL for GSC.
-    // GSC typically expects full URLs like https://www.example.com/ or sc-domain:example.com
-    return `https://${url}`; // Or handle as an error if format is unexpected
+    return `https://${url}`;
   }
 
   private async handlePermissionError<T>(
@@ -60,7 +53,6 @@ export class SearchConsoleService {
     try {
       return await operation();
     } catch (err) {
-      // Ensure err is an Error instance and message exists
       if (err instanceof Error && err.message && err.message.toLowerCase().includes('permission')) {
         return await fallbackOperation();
       }
@@ -69,10 +61,7 @@ export class SearchConsoleService {
   }
 
   async searchAnalytics(accessToken: string, siteUrl: string, requestBody: SearchanalyticsQueryRequest) {
-    const webmasters = this.getWebmasters(accessToken); // Pass accessToken
-    // Note: The original normalizeUrl logic in handlePermissionError might need re-evaluation.
-    // If siteUrl is always expected in a specific format by GSC for this call,
-    // normalization might need to happen before this call or be more robust.
+    const webmasters = this.getWebmasters(accessToken);
     return this.handlePermissionError(
       () => webmasters.searchanalytics.query({ siteUrl, requestBody }),
       () => webmasters.searchanalytics.query({ siteUrl: this.normalizeUrl(siteUrl), requestBody }),
@@ -80,51 +69,48 @@ export class SearchConsoleService {
   }
 
   async listSites(accessToken: string) {
-    const webmasters = this.getWebmasters(accessToken); // Pass accessToken
+    const webmasters = this.getWebmasters(accessToken);
     return webmasters.sites.list();
   }
 
   async listSitemaps(accessToken: string, requestBody: ListSitemapsRequest) {
-    const webmasters = this.getWebmasters(accessToken); // Pass accessToken
+    const webmasters = this.getWebmasters(accessToken);
     return this.handlePermissionError(
       () => webmasters.sitemaps.list(requestBody),
       () =>
         webmasters.sitemaps.list({
           ...requestBody,
-          siteUrl: this.normalizeUrl(requestBody.siteUrl!), // siteUrl is non-null here per original
+          siteUrl: this.normalizeUrl(requestBody.siteUrl!),
         }),
     );
   }
 
   async getSitemap(accessToken: string, requestBody: GetSitemapRequest) {
-    const webmasters = this.getWebmasters(accessToken); // Pass accessToken
+    const webmasters = this.getWebmasters(accessToken);
     return this.handlePermissionError(
       () => webmasters.sitemaps.get(requestBody),
       () =>
         webmasters.sitemaps.get({
           ...requestBody,
-          siteUrl: this.normalizeUrl(requestBody.siteUrl!), // siteUrl is non-null here
+          siteUrl: this.normalizeUrl(requestBody.siteUrl!),
         }),
     );
   }
 
   async submitSitemap(accessToken: string, requestBody: SubmitSitemapRequest) {
-    const webmasters = this.getWebmasters(accessToken); // Pass accessToken
+    const webmasters = this.getWebmasters(accessToken);
     return this.handlePermissionError(
       () => webmasters.sitemaps.submit(requestBody),
       () =>
         webmasters.sitemaps.submit({
           ...requestBody,
-          siteUrl: this.normalizeUrl(requestBody.siteUrl!), // siteUrl is non-null here
+          siteUrl: this.normalizeUrl(requestBody.siteUrl!),
         }),
     );
   }
 
   async indexInspect(accessToken: string, requestBody: IndexInspectRequest) {
-    const searchConsole = this.getSearchConsole(accessToken); // Pass accessToken
-    // Assuming requestBody for indexInspect already contains the correct siteUrl and inspectionUrl
-    // and doesn't need the same permission-based fallback normalization.
-    // If it does, this method might also need to use handlePermissionError.
+    const searchConsole = this.getSearchConsole(accessToken);
     return searchConsole.urlInspection.index.inspect({ requestBody });
   }
 }
