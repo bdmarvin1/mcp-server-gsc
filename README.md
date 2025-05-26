@@ -1,131 +1,143 @@
-# Google Search Console MCP Server
-[![smithery badge](https://smithery.ai/badge/mcp-server-gsc)](https://smithery.ai/server/mcp-server-gsc)
+# Google Search Console MCP Server (@bdmarvin/mcp-server-gsc)
 
-A Model Context Protocol (MCP) server providing access to Google Search Console. This version has been modified to use OAuth 2.0 access tokens for authentication.
+[![NPM version](https://img.shields.io/npm/v/@bdmarvin/mcp-server-gsc.svg)](https://www.npmjs.com/package/@bdmarvin/mcp-server-gsc)
+[![Original Repository](https://img.shields.io/badge/forked%20from-ahonn/mcp--server--gsc-blue)](https://github.com/ahonn/mcp-server-gsc)
+
+A Model Context Protocol (MCP) server providing access to Google Search Console. This version, `@bdmarvin/mcp-server-gsc`, has been significantly refactored from the original to:
+- Use **OAuth 2.0 access tokens** for authentication, provided dynamically with each tool call.
+- Remove the need for Google Service Account JSON keys.
+- Be installable and runnable via `npx @bdmarvin/mcp-server-gsc`.
+- Integrate seamlessly with an MCP OAuth Controller, such as [Bdmarvin1/typingmind-mcp](https://github.com/Bdmarvin1/typingmind-mcp).
 
 ## Features
 
-- Search analytics data retrieval with dimensions support
-- Rich data analysis with customizable reporting periods
-- Site and sitemap management capabilities
-- URL inspection
+- **Dynamic OAuth 2.0 Authentication**: Securely uses access tokens managed by an external controller.
+- **Search Analytics**: Retrieve search performance data with support for various dimensions and filters.
+- **Site Management**: List accessible sites.
+- **Sitemap Management**: List, get, and submit sitemaps.
+- **URL Inspection**: Check if a URL is indexed or can be indexed.
 
 ## Prerequisites
 
-- Node.js 18 or later
-- Access to a Google Account that has permissions for the desired Google Search Console properties.
-- An "MCP OAuth Controller" server (like `typingmind-mcp` or a similar custom implementation) that handles the Google OAuth 2.0 flow and injects access tokens.
+- **Node.js 18 or later.**
+- **An MCP OAuth Controller**: This server is designed to be managed by a controller like [Bdmarvin1/typingmind-mcp](https://github.com/Bdmarvin1/typingmind-mcp) or a similar implementation. The controller handles:
+    - The Google OAuth 2.0 flow with the end-user.
+    - Secure storage and refreshing of Google OAuth tokens.
+    - Starting this `mcp-server-gsc` process (e.g., via `npx`).
+    - Injecting the necessary `__google_access_token__` into tool call arguments.
+- **Google Account Permissions**: The Google account authenticated via the MCP OAuth Controller must have the necessary permissions for the Google Search Console properties you intend to access.
 
-## Installation
+## Installation & Execution via `npx`
 
-### Installing via Smithery
+This server is intended to be run as a child process by an MCP OAuth Controller using `npx`.
 
-(Note: Smithery installation might need to be updated to reflect the new authentication mechanism if it relied on service account environment variables.)
-
-To install Google Search Console for Claude Desktop automatically via [Smithery](https://smithery.ai/server/mcp-server-gsc):
-
+To run it (typically done by the controller):
 ```bash
-npx -y @smithery/cli install mcp-server-gsc --client claude
+npx @bdmarvin/mcp-server-gsc
+```
+The server will start and listen for MCP messages on its standard input/output (stdio).
+
+### For Developers (Fork & Manual Build)
+If you're contributing or modifying this server:
+```bash
+git clone https://github.com/Bdmarvin1/mcp-server-gsc.git
+cd mcp-server-gsc
+pnpm install 
+pnpm run build
+# To run locally (simulating npx, for testing the build):
+# node dist/index.js 
 ```
 
-### Manual Installation
-```bash
-npm install mcp-server-gsc 
-# or if you are working with the forked repository:
-# git clone https://github.com/Bdmarvin1/mcp-server-gsc.git
-# cd mcp-server-gsc
-# pnpm install # (or npm install / yarn install based on your setup)
-# pnpm run build 
+## Authentication Flow
+
+1.  The end-user authenticates with Google via the **MCP OAuth Controller** (e.g., `Bdmarvin1/typingmind-mcp`).
+2.  The MCP OAuth Controller obtains a Google Access Token for the user.
+3.  When a tool on this `mcp-server-gsc` is called:
+    *   The MCP OAuth Controller starts `npx @bdmarvin/mcp-server-gsc` (if not already running for the session).
+    *   The controller injects the `__google_access_token__` (and optionally `__google_user_id__`, `__google_user_email__`) into the `arguments` object of the `CallToolRequest`.
+    *   This request is sent to `mcp-server-gsc`'s stdin.
+4.  `mcp-server-gsc` uses the provided access token to make the Google Search Console API call.
+
+**This server does NOT handle OAuth callbacks, manage refresh tokens, or require `GOOGLE_APPLICATION_CREDENTIALS`.**
+
+## Configuration within an MCP OAuth Controller
+
+Here's an example of how to configure an MCP OAuth Controller (like `Bdmarvin1/typingmind-mcp` or a standard TypingMind MCP instance) to use this server:
+
+```json
+{
+  "mcpServers": {
+    "gsc-bdmarvin": { // A unique name for this server instance
+      "command": "npx",
+      "args": ["@bdmarvin/mcp-server-gsc"],
+      "env": {
+        // No environment variables needed for authentication
+      },
+      "captureStderr": true // Recommended for debugging
+    }
+  }
+}
 ```
-
-## Authentication Setup (OAuth 2.0 via MCP OAuth Controller)
-
-This server no longer uses Google Service Account keys directly. Instead, it relies on an external MCP OAuth Controller to perform the Google OAuth 2.0 authentication flow and provide a Google Access Token with each tool call.
-
-The MCP OAuth Controller is responsible for:
-1.  Handling the Google OAuth 2.0 flow with the end-user.
-2.  Securely storing Google refresh tokens.
-3.  Injecting a fresh Google Access Token (`__google_access_token__`) and optionally Google User ID (`__google_user_id__`) and email (`__google_user_email__`) into the `arguments` object passed to this server's tools.
-
-**This GSC MCP Server expects the `__google_access_token__` to be present in the `arguments` of each tool request.**
-
-## Usage
-
-This server is intended to be called by an MCP OAuth Controller. The controller will manage starting this server and invoking its tools.
-
-### Example: How the MCP OAuth Controller interacts (Conceptual)
-
-When a client (e.g., TypingMind UI) needs to use a tool from this GSC server:
-1. Client makes a request to the MCP OAuth Controller's `/clients/:id/call_tools` endpoint.
-2. The MCP OAuth Controller:
-    a. Authenticates the client and the user context.
-    b. Retrieves/refreshes the Google Access Token for the user.
-    c. Constructs the arguments for the GSC tool, injecting `__google_access_token__`.
-    d. Calls the appropriate tool on this `mcp-server-gsc` instance (e.g., via StdioClientTransport), passing the augmented arguments.
-
-**No `GOOGLE_APPLICATION_CREDENTIALS` environment variable is needed or used by this server anymore.**
 
 ## Available Tools
 
-(Tool parameters remain the same, but authentication is handled via the injected access token.)
+All tools expect the `__google_access_token__` to be present in the `arguments` object of the `CallToolRequest`, injected by the MCP OAuth Controller.
 
 ### `list_sites`
-List all sites the authenticated Google Account has access to in Google Search Console.
-- Input: (No specific parameters beyond the injected `__google_access_token__`)
+- **Description**: Lists all sites the authenticated Google Account has access to in Google Search Console.
+- **Input `arguments`**: `{ "__google_access_token__": "user_access_token_here" }`
 
 ### `search_analytics`
-Get search performance data from Google Search Console.
-- **Required Parameters (in `arguments` object):**
-    - `siteUrl`: Site URL (format: `http://www.example.com/` or `sc-domain:example.com`)
-    - `startDate`: Start date (YYYY-MM-DD)
-    - `endDate`: End date (YYYY-MM-DD)
-- **Optional Parameters (in `arguments` object):**
-    - `dimensions`: Comma-separated list (`query,page,country,device,searchAppearance`)
-    - `type`: Search type (`web`, `image`, `video`, `news`)
-    - `aggregationType`: Aggregation method (`auto`, `byNewsShowcasePanel`, `byProperty`, `byPage`)
-    - `rowLimit`: Maximum rows to return (default: 1000)
+- **Description**: Get search performance data from Google Search Console.
+- **Input `arguments`**:
+    - `__google_access_token__` (string, **required**)
+    - `siteUrl` (string, **required**): URL of the GSC property (e.g., `https://example.com/` or `sc-domain:example.com`).
+    - `startDate` (string, **required**): YYYY-MM-DD format.
+    - `endDate` (string, **required**): YYYY-MM-DD format.
+    - `dimensions` (array of strings, optional): e.g., `["query", "page", "country", "device", "searchAppearance"]`.
+    - `type` (string, optional): Search type, e.g., `"web"`, `"image"`, `"video"`, `"news"`.
+    - `aggregationType` (string, optional): e.g., `"auto"`, `"byNewsShowcasePanel"`, `"byProperty"`, `"byPage"`.
+    - `rowLimit` (number, optional): Max rows (default: 1000).
 
-Example `arguments` for `search_analytics` (as prepared by the MCP OAuth Controller):
+_Example `arguments` for `search_analytics`:_
 ```json
 {
-  "__google_access_token__": "ya29.a0AfH6SMB...", 
-  "__google_user_id__": "109...",
-  "__google_user_email__": "user@example.com",
+  "__google_access_token__": "ya29.a0AfH6SMB...",
   "siteUrl": "https://example.com",
   "startDate": "2024-01-01",
   "endDate": "2024-01-31",
-  "dimensions": "query,country",
-  "type": "web",
-  "rowLimit": 500
+  "dimensions": ["query", "country"]
 }
 ```
 
 ### `index_inspect`
-Inspect a URL to see if it is indexed or can be indexed.
-- **Required Parameters (in `arguments` object):**
-    - `siteUrl`: The URL of the Search Console property that includes the page to inspect.
-    - `inspectionUrl`: The exact URL of the page to inspect (must be within `siteUrl`).
-- **Optional Parameters (in `arguments` object):**
-    - `languageCode`: Language code for the inspection (e.g., "en-US").
+- **Description**: Inspect a URL to see if it is indexed or can be indexed.
+- **Input `arguments`**:
+    - `__google_access_token__` (string, **required**)
+    - `siteUrl` (string, **required**): The URL of the Search Console property.
+    - `inspectionUrl` (string, **required**): The exact URL of the page to inspect.
+    - `languageCode` (string, optional): e.g., `"en-US"`.
 
 ### `list_sitemaps`
-List sitemaps for a site in Google Search Console.
-- **Required Parameters (in `arguments` object):**
-    - `siteUrl`: The site's URL.
-- **Optional Parameters (in `arguments` object):**
-    - `sitemapIndex`: URL of a sitemap index. If specified, lists sitemaps in the index.
+- **Description**: List sitemaps for a site.
+- **Input `arguments`**:
+    - `__google_access_token__` (string, **required**)
+    - `siteUrl` (string, **required**): The site's URL.
+    - `sitemapIndex` (string, optional): URL of a sitemap index.
 
 ### `get_sitemap`
-Get a sitemap for a site in Google Search Console.
-- **Required Parameters (in `arguments` object):**
-    - `siteUrl`: The site's URL.
-    - `feedpath`: The URL of the sitemap (e.g., `https://www.example.com/sitemap.xml`).
+- **Description**: Get a sitemap's details.
+- **Input `arguments`**:
+    - `__google_access_token__` (string, **required**)
+    - `siteUrl` (string, **required**): The site's URL.
+    - `feedpath` (string, **required**): The full URL of the sitemap.
 
 ### `submit_sitemap`
-Submit a sitemap for a site in Google Search Console.
-- **Required Parameters (in `arguments` object):**
-    - `siteUrl`: The site's URL.
-    - `feedpath`: The URL of the sitemap to submit.
+- **Description**: Submit a sitemap.
+- **Input `arguments`**:
+    - `__google_access_token__` (string, **required**)
+    - `siteUrl` (string, **required**): The site's URL.
+    - `feedpath` (string, **required**): The full URL of the sitemap to submit.
 
 ## License
 
@@ -133,4 +145,4 @@ MIT
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+Contributions to `Bdmarvin1/mcp-server-gsc` are welcome! Please open an issue or pull request.
