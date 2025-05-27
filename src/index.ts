@@ -18,7 +18,7 @@ import { SearchConsoleService } from './search-console.js';
 const server = new Server(
   {
     name: 'gsc-mcp-server',
-    version: '0.2.1', // Updated version
+    version: '0.2.2', // Updated version
   },
   {
     capabilities: {
@@ -177,7 +177,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function runServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Google Search Console MCP Server (OAuth2 Ready - v0.2.1) running on stdio'); // Updated version in log
+  console.error('Google Search Console MCP Server (OAuth2 Ready - v0.2.2) running on stdio'); // Updated version in log
 }
 
 runServer().catch((error) => {
